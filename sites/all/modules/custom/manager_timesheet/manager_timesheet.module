@@ -1,0 +1,347 @@
+<?php
+define('MANAGER_TIMESHEET_URI', 'manager-timesheet');
+define('MANAGER_TIMESHEET_URI_ARGUMENT_POSITION', 0);
+define('MANAGER_TIMESHEET_ADMIN_URI', 'admin/content/manager-timesheet');
+define('MANAGER_TIMESHEET_ADMIN_URI_ARGUMENT_POSITION', 2);
+define('MANAGER_TIMESHEET_TYPE_ADMIN_URI', 'admin/structure/manager-timesheet-types');
+define('MANAGER_TIMESHEET_TYPE_ADMIN_URI_ARGUMENT_POSITION', 2);
+
+module_load_include('inc', 'manager_timesheet', 'manager_timesheet.pages');
+
+/**
+ * Implements hook_entity_info().
+ */
+function manager_timesheet_entity_info() {
+  $return = array(
+    'manager_timesheet' => array(
+      'label' => t('Manager Timesheet'),
+      'entity class' => 'ManagerTimesheet',
+      'controller class' => 'ManagerTimesheetController',
+      'base table' => 'manager_timesheet',
+      'fieldable' => TRUE,
+      'entity keys' => array(
+        'id' => 'mtid',
+        'bundle' => 'type',
+        'label' => 'title',
+        'language' => 'language',
+      ),
+      'bundle keys' => array(
+        'bundle' => 'type',
+      ),
+      'bundles' => array(),
+      'load hook' => 'manager_timesheet_load',
+      'view modes' => array(
+        'full' => array(
+          'label' => t('Default'),
+          'custom settings' => FALSE,
+        ),
+      ),
+      'label callback' => 'entity_class_label',
+      'uri callback' => 'entity_class_uri',
+      'module' => 'manager_timesheet',
+      'access callback' => 'manager_timesheet_access',
+    ),
+  );
+  $return['manager_timesheet_type'] = array(
+    'label' => t('Manager Timesheet Type'),
+    'entity class' => 'ManagerTimesheetType',
+    'controller class' => 'ManagerTimesheetTypeController',
+    'base table' => 'manager_timesheet_type',
+    'fieldable' => FALSE,
+    'bundle of' => 'manager_timesheet',
+    'exportable' => FALSE,
+    'entity keys' => array(
+      'id' => 'id',
+      'name' => 'type',
+      'label' => 'label',
+    ),
+    'module' => 'manager_timesheet',
+    // Enable the entity API's admin UI.
+    'admin ui' => array(
+      'path' => MANAGER_TIMESHEET_TYPE_ADMIN_URI,
+      'file' => 'manager_timesheet.type.inc',
+      'controller class' => 'ManagerTimesheetTypeUIController',
+    ),
+    'access callback' => 'manager_timesheet_type_access',
+  );
+  return $return;
+}
+
+/**
+ * Implements hook_entity_info_alter().
+ */
+function manager_timesheet_entity_info_alter(&$entity_info) {
+  foreach (manager_timesheet_types() as $type => $info) {
+    $entity_info['manager_timesheet']['bundles'][$type] = array(
+      'label' => $info->label,
+      'admin' => array(
+        'path' => MANAGER_TIMESHEET_TYPE_ADMIN_URI . '/manage/%manager_timesheet_type',
+        'real path' => MANAGER_TIMESHEET_TYPE_ADMIN_URI . '/manage/' . $type,
+        'bundle argument' => MANAGER_TIMESHEET_TYPE_ADMIN_URI_ARGUMENT_POSITION + 2,
+      ),
+    );
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function manager_timesheet_menu() {
+  $items = array();
+
+  $items[MANAGER_TIMESHEET_TYPE_ADMIN_URI . '/%manager_timesheet_type/delete'] = array(
+    'title' => t('Delete Manager Timesheet Type'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('manager_timesheet_type_form_delete_confirm', MANAGER_TIMESHEET_TYPE_ADMIN_URI_ARGUMENT_POSITION + 2),
+    'access arguments' => array('administer manager_timesheet types'),
+    'weight' => 1,
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'manager_timesheet.type.inc',
+  );
+
+  $items[MANAGER_TIMESHEET_ADMIN_URI . '/add'] = array(
+    'title' => t('Add Manager Timesheet'),
+    'page callback' => 'manager_timesheet_admin_add_page',
+    'access arguments' => array('administer manager_timesheet entities'),
+    'type' => MENU_LOCAL_ACTION,
+    'tab_parent' => 'manager_timesheet',
+    'tab_root' => 'manager_timesheet',
+    'file' => 'manager_timesheet.admin.inc',
+  );
+
+  foreach (manager_timesheet_types() as $type => $info) {
+    $items[MANAGER_TIMESHEET_ADMIN_URI . '/add/' . $type] = array(
+      'title' => $info->label,
+      'page callback' => 'manager_timesheet_admin_add',
+      'page arguments' => array(MANAGER_TIMESHEET_ADMIN_URI_ARGUMENT_POSITION + 2),
+      'access callback' => 'entity_access',
+      'access arguments' => array('create', 'manager_timesheet', $type),
+      'file' => 'manager_timesheet.admin.inc',
+    );
+  }
+
+  $manager_timesheet_uri = MANAGER_TIMESHEET_URI . '/%manager_timesheet';
+  $manager_timesheet_uri_argument_position = MANAGER_TIMESHEET_URI_ARGUMENT_POSITION + 1;
+
+  $items[$manager_timesheet_uri] = array(
+    'title callback' => 'entity_label',
+    'title arguments' => array('manager_timesheet', $manager_timesheet_uri_argument_position),
+    'page callback' => 'manager_timesheet_view',
+    'page arguments' => array($manager_timesheet_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('view', 'manager_timesheet', $manager_timesheet_uri_argument_position),
+  );
+
+  $items[$manager_timesheet_uri . '/view'] = array(
+    'title' => t('View Manager Timesheet'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+
+  $items[$manager_timesheet_uri . '/delete'] = array(
+    'title' => t('Delete Manager Timesheet'),
+    'title callback' => 'manager_timesheet_label',
+    'title arguments' => array($manager_timesheet_uri_argument_position),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('manager_timesheet_admin_delete_form', $manager_timesheet_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('edit', 'manager_timesheet', $manager_timesheet_uri_argument_position),
+    'file' => 'manager_timesheet.admin.inc',
+  );
+
+  $items[$manager_timesheet_uri . '/edit'] = array(
+    'title' => t('Edit Manager Timesheet'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('manager_timesheet_admin_add_form', $manager_timesheet_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('edit', 'manager_timesheet', $manager_timesheet_uri_argument_position),
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+    'file' => 'manager_timesheet.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Access callback for Manager Timesheet.
+ */
+function manager_timesheet_access($op, $manager_timesheet, $account = NULL, $entity_type = NULL) {
+  global $user;
+  if (!isset($account)) {
+    $account = $user;
+  }
+  switch ($op) {
+  	case 'create':
+  	  return user_access('administer manager_timesheet entities', $account)
+  	  || user_access('create manager_timesheet entities', $account);
+  	case 'view':
+  	  return user_access('administer manager_timesheet entities', $account)
+  	  || user_access('view manager_timesheet entities', $account);
+  	case 'edit':
+  	  return user_access('administer manager_timesheet entities')
+  	  || user_access('edit any manager_timesheet entities')
+  	  || (user_access('edit own manager_timesheet entities') && ($task->uid == $account->uid));
+  }
+}
+
+/**
+ * Access callback for Manager Timesheet Type.
+ */
+function manager_timesheet_type_access($op, $entity = NULL) {
+  return user_access('administer manager_timesheet types');
+}
+
+/**
+ * Implements hook_permission().
+ */
+function manager_timesheet_permission() {
+  $permissions = array(
+    'administer manager_timesheet types' => array(
+      'title' => t('Administer Manager Timesheet types'),
+      'description' => t('Allows users to configure Manager Timesheet types and their fields.'),
+      'restrict access' => TRUE,
+    ),
+    'create manager_timesheet entities' => array(
+      'title' => t('Create Manager Timesheet'),
+      'description' => t('Allows users to create Manager Timesheet.'),
+      'restrict access' => TRUE,
+    ),
+    'view manager_timesheet entities' => array(
+      'title' => t('View Manager Timesheet'),
+      'description' => t('Allows users to view Manager Timesheet.'),
+      'restrict access' => TRUE,
+    ),
+    'edit any manager_timesheet entities' => array(
+      'title' => t('Edit any Manager Timesheet'),
+      'description' => t('Allows users to edit any Manager Timesheet.'),
+      'restrict access' => TRUE,
+    ),
+    'edit own manager_timesheet entities' => array(
+      'title' => t('Edit own Manager Timesheet'),
+      'description' => t('Allows users to edit own Manager Timesheet.'),
+      'restrict access' => TRUE,
+    ),
+  );
+  return $permissions;
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function manager_timesheet_views_api() {
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'manager_timesheet'),
+  );
+}
+
+function manager_timesheet_views_post_execute(&$view) {
+  if($view->name == 'manager_timesheet'){
+   foreach ($view->result as $key => $result) {
+    if ($view->result[$key]->manager_timesheet_timesheet_status == 1){
+      $view->result[$key]->manager_timesheet_timesheet_status = 'Todo';
+    }
+    elseif ($view->result[$key]->manager_timesheet_timesheet_status == 2){
+      $view->result[$key]->manager_timesheet_timesheet_status = 'Submited';
+    }
+    elseif ($view->result[$key]->manager_timesheet_timesheet_status == 3){
+      $view->result[$key]->manager_timesheet_timesheet_status = 'Approved';
+    }
+   }
+  }
+}
+
+function manager_timesheet_views_data() {
+  $data['manager_timesheet']['table']['group'] = t('Manager Timesheet');
+  $data['manager_timesheet']['table']['base'] = array(
+      'field' => 'mtid',
+      'title' => t('Manager Timesheet'),
+      'help' => t('Manager Timesheet.'),
+      'weight' => -10
+  );
+  $data['manager_timesheet']['table']['join'] = array(
+      'manager_timesheet_members' => array(
+          'left_field' => 'id_timesheet',
+          'field' => 'mtid'
+      )
+  );
+  $data['manager_timesheet']['mtid'] = array(
+      'title' => t('Manager Timesheet'),
+      'help' => t('Manager Timesheet.'),
+      'relationship' => array(
+          'base' => 'manager_timesheet_members', // The name of the table to join with.
+          'base field' => 'id_timesheet', // The name of the field on the joined table.
+          'handler' => 'views_handler_relationship',
+          'label' => t('Default label for the relationship'),
+          'title' => t('Title shown when adding the relationship'),
+          'help' => t('More information on this relationship'),
+      ),
+  );
+  $data['manager_timesheet']['week'] = array(
+      'title' => t('Week'),
+      'field' => array(
+          'handler' => 'views_handler_field_numeric',
+          'click sortable' => TRUE
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_numeric'
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort'
+      ),
+  );
+  $data['manager_timesheet']['billable_days'] = array(
+      'title' => t('Billable days this weekly'),
+      'field' => array(
+          'handler' => 'views_handler_field_numeric',
+          'click sortable' => TRUE
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_numeric'
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort'
+      ),
+  );
+  $data['manager_timesheet']['comment'] = array(
+      'title' => t('Comment on the Manager Timesheet'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+      ),
+  );
+  $data['manager_timesheet']['timesheet_status'] = array(
+      'title' => t('Status of the timesheet'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+      ),
+  );
+  $data['manager_timesheet']['type'] = array(
+   'title' => t('Type'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_equality',
+      ),
+  );
+  return $data;
+}

@@ -1,0 +1,10 @@
+name = Week
+description = Create week  
+
+dependencies[] = entity
+dependencies[] = views
+
+files[] = week.controller.inc
+
+package = Dirox
+core = 7.x

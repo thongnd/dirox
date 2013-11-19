@@ -1,0 +1,165 @@
+<?php
+/**
+ * Implements hook_schema().
+ */
+function people_schema() {
+  $schema = array();
+
+  $schema['people'] = array(
+    'description' => 'The base table for People.',
+    'fields' => array(
+      'pid' => array(
+        'description' => 'The primary identifier for the People.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'user_id' => array(
+          'description' => 'Point to a Users ID.',
+          'type' => 'int',
+          'not null' => FALSE,
+      ),
+      'first_name' => array(
+        'description' => 'First Name of the people.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'last_name' => array(
+        'description' => 'Last Name of the people.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'job_description' => array(
+        'description' => "Description of the people's job.",
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'daily_rate' => array(
+        'description' => "Daily rate of the people (price based on the salary).",
+        'type' => 'float',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'email' => array(
+        'description' => 'Email of the people.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'phone' => array(
+        'description' => 'Phone number of the people',
+        'type' => 'int',
+        'length' => '25',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'address' => array(
+        'description' => 'Address of the people.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'city' => array(
+        'description' => 'City of the people.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'zip' => array(
+        'description' => 'Zip code of the city.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'country' => array(
+        'description' => 'Country of the people.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'manager' => array(
+          'description' => 'Point to a People ID.',
+          'type' => 'int',
+          'not null' => TRUE,
+      ),
+      'id_project' => array(
+          'description' => 'Point to a Project ID.',
+          'type' => 'int',
+          'not null' => TRUE,
+      ),
+      'type' => array(
+        'description' => 'The type (bundle) of this People.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the People was created.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'changed' => array(
+        'description' => 'The Unix timestamp when the People was most recently saved.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'people_changed'        => array('changed'),
+      'people_created'        => array('created'),
+      'people_type'           => array(array('type', 4)),
+    ),
+    'primary key' => array('pid'),
+  );
+
+  $schema['people_type'] = array(
+    'description' => 'Stores information about all defined People types.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique People type ID.',
+      ),
+      'type' => array(
+        'description' => 'The machine-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'label' => array(
+        'description' => 'The human-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'description' => array(
+        'description' => 'A brief description of this type.',
+        'type' => 'text',
+        'not null' => TRUE,
+        'size' => 'medium',
+        'translatable' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'type' => array('type'),
+    ),
+  );
+
+  return $schema;
+}

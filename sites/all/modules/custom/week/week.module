@@ -1,0 +1,334 @@
+<?php
+define('WEEK_URI', 'week');
+define('WEEK_URI_ARGUMENT_POSITION', 0);
+define('WEEK_ADMIN_URI', 'admin/content/week');
+define('WEEK_ADMIN_URI_ARGUMENT_POSITION', 2);
+define('WEEK_TYPE_ADMIN_URI', 'admin/structure/week-types');
+define('WEEK_TYPE_ADMIN_URI_ARGUMENT_POSITION', 2);
+
+module_load_include('inc', 'week', 'week.pages');
+
+/**
+ * Implements hook_entity_info().
+ */
+function week_entity_info() {
+  $return = array(
+    'week' => array(
+      'label' => t('Week'),
+      'entity class' => 'Week',
+      'controller class' => 'WeekController',
+      'base table' => 'week',
+      'fieldable' => TRUE,
+      'entity keys' => array(
+        'id' => 'wid',
+        'bundle' => 'type',
+        'label' => 'title',
+        'language' => 'language',
+      ),
+      'bundle keys' => array(
+        'bundle' => 'type',
+      ),
+      'bundles' => array(),
+      'load hook' => 'week_load',
+      'view modes' => array(
+        'full' => array(
+          'label' => t('Default'),
+          'custom settings' => FALSE,
+        ),
+      ),
+      'label callback' => 'entity_class_label',
+      'uri callback' => 'entity_class_uri',
+      'module' => 'week',
+      'access callback' => 'week_access',
+    ),
+  );
+  $return['week_type'] = array(
+    'label' => t('Week Type'),
+    'entity class' => 'WeekType',
+    'controller class' => 'WeekTypeController',
+    'base table' => 'week_type',
+    'fieldable' => FALSE,
+    'bundle of' => 'week',
+    'exportable' => FALSE,
+    'entity keys' => array(
+      'id' => 'id',
+      'name' => 'type',
+      'label' => 'label',
+    ),
+    'module' => 'week',
+    // Enable the entity API's admin UI.
+    'admin ui' => array(
+      'path' => WEEK_TYPE_ADMIN_URI,
+      'file' => 'week.type.inc',
+      'controller class' => 'WeekTypeUIController',
+    ),
+    'access callback' => 'week_type_access',
+  );
+  return $return;
+}
+
+/**
+ * Implements hook_entity_info_alter().
+ */
+function week_entity_info_alter(&$entity_info) {
+  foreach (week_types() as $type => $info) {
+    $entity_info['week']['bundles'][$type] = array(
+      'label' => $info->label,
+      'admin' => array(
+        'path' => WEEK_TYPE_ADMIN_URI . '/manage/%week_type',
+        'real path' => WEEK_TYPE_ADMIN_URI . '/manage/' . $type,
+        'bundle argument' => WEEK_TYPE_ADMIN_URI_ARGUMENT_POSITION + 2,
+      ),
+    );
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function week_menu() {
+  $items = array();
+
+  $items[WEEK_TYPE_ADMIN_URI . '/%week_type/delete'] = array(
+    'title' => t('Delete Week Type'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('week_type_form_delete_confirm', WEEK_TYPE_ADMIN_URI_ARGUMENT_POSITION + 2),
+    'access arguments' => array('administer week types'),
+    'weight' => 1,
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'week.type.inc',
+  );
+
+  $items[WEEK_ADMIN_URI . '/add'] = array(
+    'title' => t('Add Week'),
+    'page callback' => 'week_admin_add_page',
+    'access arguments' => array('administer week entities'),
+    'type' => MENU_LOCAL_ACTION,
+    'tab_parent' => 'week',
+    'tab_root' => 'week',
+    'file' => 'week.admin.inc',
+  );
+
+  foreach (week_types() as $type => $info) {
+    $items[WEEK_ADMIN_URI . '/add/' . $type] = array(
+      'title' => $info->label,
+      'page callback' => 'week_admin_add',
+      'page arguments' => array(WEEK_ADMIN_URI_ARGUMENT_POSITION + 2),
+      'access callback' => 'entity_access',
+      'access arguments' => array('create', 'week', $type),
+      'file' => 'week.admin.inc',
+    );
+  }
+
+  $week_uri = WEEK_URI . '/%week';
+  $week_uri_argument_position = WEEK_URI_ARGUMENT_POSITION + 1;
+
+  $items[$week_uri] = array(
+    'title callback' => 'entity_label',
+    'title arguments' => array('week', $week_uri_argument_position),
+    'page callback' => 'week_view',
+    'page arguments' => array($week_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('view', 'week', $week_uri_argument_position),
+  );
+
+  $items[$week_uri . '/view'] = array(
+    'title' => t('View Week'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+
+  $items[$week_uri . '/delete'] = array(
+    'title' => t('Delete Week'),
+    'title callback' => 'week_label',
+    'title arguments' => array($week_uri_argument_position),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('week_admin_delete_form', $week_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('edit', 'week', $week_uri_argument_position),
+    'file' => 'week.admin.inc',
+  );
+
+  $items[$week_uri . '/edit'] = array(
+    'title' => t('Edit Week'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('week_admin_add_form', $week_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('edit', 'week', $week_uri_argument_position),
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+    'file' => 'week.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Access callback for Week.
+ */
+function week_access($op, $week, $account = NULL, $entity_type = NULL) {
+  global $user;
+  if (!isset($account)) {
+    $account = $user;
+  }
+  switch ($op) {
+  	case 'create':
+  	  return user_access('administer week entities', $account)
+  	  || user_access('create week entities', $account);
+  	case 'view':
+  	  return user_access('administer week entities', $account)
+  	  || user_access('view week entities', $account);
+  	case 'edit':
+  	  return user_access('administer week entities')
+  	  || user_access('edit any week entities')
+  	  || (user_access('edit own week entities') && ($task->uid == $account->uid));
+  }
+}
+
+/**
+ * Access callback for Week Type.
+ */
+function week_type_access($op, $entity = NULL) {
+  return user_access('administer week types');
+}
+
+/**
+ * Implements hook_permission().
+ */
+function week_permission() {
+  $permissions = array(
+    'administer week types' => array(
+      'title' => t('Administer Week types'),
+      'description' => t('Allows users to configure Week types and their fields.'),
+      'restrict access' => TRUE,
+    ),
+    'create week entities' => array(
+      'title' => t('Create Week'),
+      'description' => t('Allows users to create Week.'),
+      'restrict access' => TRUE,
+    ),
+    'view week entities' => array(
+      'title' => t('View Week'),
+      'description' => t('Allows users to view Week.'),
+      'restrict access' => TRUE,
+    ),
+    'edit any week entities' => array(
+      'title' => t('Edit any Week'),
+      'description' => t('Allows users to edit any Week.'),
+      'restrict access' => TRUE,
+    ),
+    'edit own week entities' => array(
+      'title' => t('Edit own Week'),
+      'description' => t('Allows users to edit own Week.'),
+      'restrict access' => TRUE,
+    ),
+  );
+  return $permissions;
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function week_views_api() {
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'week'),
+  );
+}
+
+function week_views_data() {
+  $data['week']['table']['group'] = t('Week');
+  $data['week']['table']['base'] = array(
+      'field' => 'wid',
+      'title' => t('Week'),
+      'help' => t('Week'),
+      'weight' => -10
+  );
+  $data['week']['table']['join'] = array(
+      'manager_timesheet' => array(
+          'left_field' => 'week',
+          'field' => 'wid'
+      )
+  );
+  $data['week']['wid'] = array(
+      'title' => t('Week'),
+      'help' => t('Week'),
+      'relationship' => array(
+          'base' => 'manager_timesheet', // The name of the table to join with.
+          'base field' => 'week', // The name of the field on the joined table.
+          'handler' => 'views_handler_relationship',
+          'label' => t('Default label for the relationship'),
+          'title' => t('Title shown when adding the relationship'),
+          'help' => t('More information on this relationship'),
+      ),
+  );
+  $data['week']['year'] = array(
+      'title' => t('year'),
+      'field' => array(
+          'handler' => 'views_handler_field_numeric',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_numeric',
+      ),
+  );
+  $data['week']['week_number'] = array(
+      'title' => t('week_number'),
+      'field' => array(
+          'handler' => 'views_handler_field_numeric',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_numeric',
+      ),
+  );
+  $data['week']['week_working_days'] = array(
+      'title' => t('week_working_days'),
+      'field' => array(
+          'handler' => 'views_handler_field_numeric',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_numeric',
+      ),
+  );
+  $data['week']['type'] = array(
+      'title' => t('Type'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_equality',
+      ),
+  );
+  return $data;
+}
+
+function week_views_data_alter(&$data) {
+  $data['week']['week_first_day'] = array(
+      'title' => t('Week_first_day'),
+      'field' => array(
+          'handler' => 'views_handler_field_date',
+          'help' => t('Week "week_first_day" property.'),
+          'click sortable' => TRUE,
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_date',
+          'label' => t('Week_first_day'),
+          'help' => t('Week "week_first_day" property..'),
+      ),
+  );
+}

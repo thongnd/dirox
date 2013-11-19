@@ -1,0 +1,10 @@
+name = People
+description = Create people  
+
+dependencies[] = entity
+dependencies[] = views
+
+files[] = people.controller.inc
+
+package = Dirox
+core = 7.x

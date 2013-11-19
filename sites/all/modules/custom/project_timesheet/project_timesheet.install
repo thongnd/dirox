@@ -1,0 +1,191 @@
+<?php
+/**
+ * Implements hook_schema().
+ */
+function project_timesheet_schema() {
+  $schema = array();
+
+  $schema['project_timesheet'] = array(
+    'description' => 'The base table for Project Timesheet.',
+    'fields' => array(
+      'tid' => array(
+        'description' => 'ID of the Project Timesheet.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'week' => array(
+        'description' => 'Week for the timesheet (number of week,first day).',
+        'type' => 'int',
+        'length' => 3,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'reestimated_mandays' => array(
+          'description' => 'Did the PM reestimated the mandays?',
+          'type' => 'int',
+          'size' => 'tiny',
+      ),
+      'consumed_mandays' => array(
+        'description' => 'Number of mandays comsumed during the week.',
+        'type' => 'float',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'mandays_to_finish' => array(
+        'description' => 'Number of needed mandays to finish the project.',
+        'type' => 'float',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'staff_cost' => array(
+          'description' => 'Staff cost of the week (in dollar).',
+          'type' => 'float',
+          'not null' => TRUE,
+          'default' => 0,
+      ),
+
+      'budget_to_finish' => array(
+          'description' => 'Needed Budget to finish the project.',
+          'type' => 'float',
+          'not null' => TRUE,
+          'default' => 0,
+      ),
+      'added_mandays' => array(
+          'description' => 'Number of added mandays.',
+          'type' => 'float',
+          'not null' => TRUE,
+          'default' => 0,
+      ),
+      'reason_added' => array(
+          'description' => 'Reason for added mandays.',
+          'type' => 'text',
+      ),
+      'new_contract_mandays' => array(
+        'description' => 'Is-there new contractualized mandays?',
+        'type' => 'int',
+        'size' => 'tiny',
+      ),
+      'number_contract_mandays' => array(
+        'description' => 'Number of new contractualized mandays.',
+        'type' => 'float',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'new_contract_reason' => array(
+        'description' => 'Reason of these new contractualized mandays.',
+        'type' => 'text',
+      ),
+
+      'mandays_delta' => array(
+          'description' => 'Mandays delta for the week.',
+          'type' => 'float',
+          'not null' => TRUE,
+          'default' => 0,
+      ),
+      'budget_delta' => array(
+          'description' => 'Budget delta for the week.',
+          'type' => 'float',
+          'not null' => TRUE,
+          'default' => 0,
+      ),
+      'project_status' => array(
+          'description' => 'Status of the project for the current week.',
+          'type' => 'varchar',
+          'length' => 255,
+          'not null' => TRUE,
+          'default' => '',
+      ),
+      'accounting_status' => array(
+          'description' => 'Accounting status of the project.',
+          'type' => 'varchar',
+          'length' => 255,
+          'not null' => TRUE,
+          'default' => '',
+      ),
+      'comment' => array(
+        'description' => 'Comment on the project timesheet.',
+        'type' => 'text',
+      ),
+      'timesheet_status' => array(
+        'description' => 'Status of the timesheet for the week.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'project' => array(
+          'description' => 'Point to a Project ID',
+          'type' => 'int',
+          'not null' => TRUE,
+      ),
+      'pm_on_creation' => array(
+          'description' => 'Point to a People ID',
+          'type' => 'int',
+          'not null' => TRUE,
+      ),
+      'type' => array(
+        'description' => 'The type (bundle) of this Project Timesheet.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the Project Timesheet was created.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'changed' => array(
+        'description' => 'The Unix timestamp when the Project Timesheet was most recently saved.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'project_timesheet_changed'        => array('changed'),
+      'project_timesheet_created'        => array('created'),
+      'project_timesheet_type'           => array(array('type', 4)),
+    ),
+    'primary key' => array('tid'),
+  );
+
+  $schema['project_timesheet_type'] = array(
+    'description' => 'Stores information about all defined Project Timesheet types.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique Project Timesheet type ID.',
+      ),
+      'type' => array(
+        'description' => 'The machine-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'label' => array(
+        'description' => 'The human-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'description' => array(
+        'description' => 'A brief description of this type.',
+        'type' => 'text',
+        'not null' => TRUE,
+        'size' => 'medium',
+        'translatable' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'type' => array('type'),
+    ),
+  );
+
+  return $schema;
+}

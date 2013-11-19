@@ -1,0 +1,114 @@
+<?php
+/**
+ * Implements hook_schema().
+ */
+function manager_timesheet_members_schema() {
+  $schema = array();
+
+  $schema['manager_timesheet_members'] = array(
+    'description' => 'The base table for Manager Timesheet Members.',
+    'fields' => array(
+      'mtmid' => array(
+        'description' => 'ID of the Manager Timesheet Members.',
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'id_timesheet' => array(
+          'description' => 'ID of the Manager Timesheet',
+          'type' => 'int',
+          'not null' => TRUE,
+      ),
+      'id_member' => array(
+          'description' => 'ID of the Member',
+          'type' => 'int',
+          'not null' => TRUE,
+      ),
+      'billed_days' => array(
+          'description' => 'Billed days this week.',
+          'type' => 'float',
+      ),
+      'staff_on_leave' => array(
+          'description' => 'Staff on leave this week.',
+          'type' => 'float',
+      ),
+      'staff_helping' => array(
+          'description' => 'Staff helping on my projects this week.',
+          'type' => 'float',
+      ),
+      'staff_sts' => array(
+          'description' => 'Staff working on Sharpening the Saw.',
+          'type' => 'float',
+      ),
+      'staff_rnd' => array(
+          'description' => 'Staff working on Research and Development this week.',
+          'type' => 'float',
+      ),
+      'staff_other' => array(
+          'description' => "Staff working on someone else's projects this week.",
+          'type' => 'float',
+      ),
+      'type' => array(
+        'description' => 'The type (bundle) of this Manager Timesheet Members.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the Manager Timesheet Members was created.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'changed' => array(
+        'description' => 'The Unix timestamp when the Manager Timesheet Members was most recently saved.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'manager_timesheet_members_changed'        => array('changed'),
+      'manager_timesheet_members_created'        => array('created'),
+      'manager_timesheet_members_type'           => array(array('type', 4)),
+    ),
+    'primary key' => array('mtmid'),
+  );
+
+  $schema['manager_timesheet_members_type'] = array(
+    'description' => 'Stores information about all defined Manager Timesheet Members types.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique Manager Timesheet Members type ID.',
+      ),
+      'type' => array(
+        'description' => 'The machine-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'label' => array(
+        'description' => 'The human-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'description' => array(
+        'description' => 'A brief description of this type.',
+        'type' => 'text',
+        'not null' => TRUE,
+        'size' => 'medium',
+        'translatable' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'type' => array('type'),
+    ),
+  );
+
+  return $schema;
+}

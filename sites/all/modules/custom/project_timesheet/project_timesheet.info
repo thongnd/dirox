@@ -1,0 +1,10 @@
+name = Project Timesheet
+description = Create project timesheet  
+
+dependencies[] = entity
+dependencies[] = views
+
+files[] = project_timesheet.controller.inc
+
+package = Dirox
+core = 7.x

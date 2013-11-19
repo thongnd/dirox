@@ -1,0 +1,412 @@
+<?php
+define('PEOPLE_URI', 'people');
+define('PEOPLE_URI_ARGUMENT_POSITION', 0);
+define('PEOPLE_ADMIN_URI', 'admin/content/people');
+define('PEOPLE_ADMIN_URI_ARGUMENT_POSITION', 2);
+define('PEOPLE_TYPE_ADMIN_URI', 'admin/structure/people-types');
+define('PEOPLE_TYPE_ADMIN_URI_ARGUMENT_POSITION', 2);
+
+module_load_include('inc', 'people', 'people.pages');
+
+/**
+ * Implements hook_entity_info().
+ */
+function people_entity_info() {
+  $return = array(
+    'people' => array(
+      'label' => t('People'),
+      'entity class' => 'People',
+      'controller class' => 'PeopleController',
+      'base table' => 'people',
+      'fieldable' => TRUE,
+      'entity keys' => array(
+        'id' => 'pid',
+        'bundle' => 'type',
+        'label' => 'title',
+        'language' => 'language',
+      ),
+      'bundle keys' => array(
+        'bundle' => 'type',
+      ),
+      'bundles' => array(),
+      'load hook' => 'people_load',
+      'view modes' => array(
+        'full' => array(
+          'label' => t('Default'),
+          'custom settings' => FALSE,
+        ),
+      ),
+      'label callback' => 'entity_class_label',
+      'uri callback' => 'entity_class_uri',
+      'module' => 'people',
+      'access callback' => 'people_access',
+    ),
+  );
+  $return['people_type'] = array(
+    'label' => t('People Type'),
+    'entity class' => 'PeopleType',
+    'controller class' => 'PeopleTypeController',
+    'base table' => 'people_type',
+    'fieldable' => FALSE,
+    'bundle of' => 'people',
+    'exportable' => FALSE,
+    'entity keys' => array(
+      'id' => 'id',
+      'name' => 'type',
+      'label' => 'label',
+    ),
+    'module' => 'people',
+    // Enable the entity API's admin UI.
+    'admin ui' => array(
+      'path' => PEOPLE_TYPE_ADMIN_URI,
+      'file' => 'people.type.inc',
+      'controller class' => 'PeopleTypeUIController',
+    ),
+    'access callback' => 'people_type_access',
+  );
+  return $return;
+}
+
+/**
+ * Implements hook_entity_info_alter().
+ */
+function people_entity_info_alter(&$entity_info) {
+  foreach (people_types() as $type => $info) {
+    $entity_info['people']['bundles'][$type] = array(
+      'label' => $info->label,
+      'admin' => array(
+        'path' => PEOPLE_TYPE_ADMIN_URI . '/manage/%people_type',
+        'real path' => PEOPLE_TYPE_ADMIN_URI . '/manage/' . $type,
+        'bundle argument' => PEOPLE_TYPE_ADMIN_URI_ARGUMENT_POSITION + 2,
+      ),
+    );
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function people_menu() {
+  $items = array();
+
+  $items[PEOPLE_TYPE_ADMIN_URI . '/%people_type/delete'] = array(
+    'title' => t('Delete People Type'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('people_type_form_delete_confirm', PEOPLE_TYPE_ADMIN_URI_ARGUMENT_POSITION + 2),
+    'access arguments' => array('administer people types'),
+    'weight' => 1,
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'people.type.inc',
+  );
+
+  $items[PEOPLE_ADMIN_URI . '/add'] = array(
+    'title' => t('Add People'),
+    'page callback' => 'people_admin_add_page',
+    'access arguments' => array('administer people entities'),
+    'type' => MENU_LOCAL_ACTION,
+    'tab_parent' => 'people',
+    'tab_root' => 'people',
+    'file' => 'people.admin.inc',
+  );
+
+  foreach (people_types() as $type => $info) {
+    $items[PEOPLE_ADMIN_URI . '/add/' . $type] = array(
+      'title' => $info->label,
+      'page callback' => 'people_admin_add',
+      'page arguments' => array(PEOPLE_ADMIN_URI_ARGUMENT_POSITION + 2),
+      'access callback' => 'entity_access',
+      'access arguments' => array('create', 'people', $type),
+      'file' => 'people.admin.inc',
+    );
+  }
+
+  $people_uri = PEOPLE_URI . '/%people';
+  $people_uri_argument_position = PEOPLE_URI_ARGUMENT_POSITION + 1;
+
+  $items[$people_uri] = array(
+    'title callback' => 'entity_label',
+    'title arguments' => array('people', $people_uri_argument_position),
+    'page callback' => 'people_view',
+    'page arguments' => array($people_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('view', 'people', $people_uri_argument_position),
+  );
+
+  $items[$people_uri . '/view'] = array(
+    'title' => t('View People'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+
+  $items[$people_uri . '/delete'] = array(
+    'title' => t('Delete People'),
+    'title callback' => 'people_label',
+    'title arguments' => array($people_uri_argument_position),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('people_admin_delete_form', $people_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('edit', 'people', $people_uri_argument_position),
+    'file' => 'people.admin.inc',
+  );
+
+  $items[$people_uri . '/edit'] = array(
+    'title' => t('Edit People'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('people_admin_add_form', $people_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('edit', 'people', $people_uri_argument_position),
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+    'file' => 'people.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Access callback for People.
+ */
+function people_access($op, $people, $account = NULL, $entity_type = NULL) {
+  global $user;
+  if (!isset($account)) {
+    $account = $user;
+  }
+  switch ($op) {
+  	case 'create':
+  	  return user_access('administer people entities', $account)
+  	  || user_access('create people entities', $account);
+  	case 'view':
+  	  return user_access('administer people entities', $account)
+  	  || user_access('view people entities', $account);
+  	case 'edit':
+  	  return user_access('administer people entities')
+  	  || user_access('edit any people entities')
+  	  || (user_access('edit own people entities') && ($task->uid == $account->uid));
+  }
+}
+
+/**
+ * Access callback for People Type.
+ */
+function people_type_access($op, $entity = NULL) {
+  return user_access('administer people types');
+}
+
+/**
+ * Implements hook_permission().
+ */
+function people_permission() {
+  $permissions = array(
+    'administer people types' => array(
+      'title' => t('Administer People types'),
+      'description' => t('Allows users to configure People types and their fields.'),
+      'restrict access' => TRUE,
+    ),
+    'create people entities' => array(
+      'title' => t('Create People'),
+      'description' => t('Allows users to create People.'),
+      'restrict access' => TRUE,
+    ),
+    'view people entities' => array(
+      'title' => t('View People'),
+      'description' => t('Allows users to view People.'),
+      'restrict access' => TRUE,
+    ),
+    'edit any people entities' => array(
+      'title' => t('Edit any People'),
+      'description' => t('Allows users to edit any People.'),
+      'restrict access' => TRUE,
+    ),
+    'edit own people entities' => array(
+      'title' => t('Edit own People'),
+      'description' => t('Allows users to edit own People.'),
+      'restrict access' => TRUE,
+    ),
+  );
+  return $permissions;
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function people_views_api() {
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'people'),
+  );
+}
+
+
+function people_views_data() {
+  $data['people']['table']['group'] = t('People');
+  $data['people']['table']['base'] = array(
+      'field' => 'pid',
+      'title' => t('People'),
+      'help' => t('People'),
+      'weight' => -10
+  );
+  $data['people']['table']['join'] = array(
+      'manager_timesheet_members' => array(
+          'left_field' => 'id_member',
+          'field' => 'pid'
+      )
+  );
+  $data['people']['pid'] = array(
+      'title' => t('People'),
+      'help' => t('People'),
+      'relationship' => array(
+          'base' => 'manager_timesheet_members', // The name of the table to join with.
+          'base field' => 'id_member', // The name of the field on the joined table.
+          'handler' => 'views_handler_relationship',
+          'label' => t('Default label for the relationship'),
+          'title' => t('Title shown when adding the relationship'),
+          'help' => t('More information on this relationship'),
+      ),
+  );
+
+  $data['people']['first_name'] = array(
+      'title' => t('first_name'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+      ),
+  );
+  $data['people']['last_name'] = array(
+      'title' => t('last_name'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+      ),
+  );
+  $data['people']['job_description'] = array(
+      'title' => t('job_description'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+      ),
+  );
+  $data['people']['daily_rate'] = array(
+      'title' => t('daily_rate'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+      ),
+  );
+  $data['people']['email'] = array(
+      'title' => t('email'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+      ),
+  );
+  $data['people']['phone'] = array(
+      'title' => t('phone'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+      ),
+  );
+  $data['people']['address'] = array(
+      'title' => t('address'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+      ),
+  );
+  $data['people']['city'] = array(
+      'title' => t('city'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+      ),
+  );
+  $data['people']['zip'] = array(
+      'title' => t('zip'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+      ),
+  );
+  $data['people']['country'] = array(
+      'title' => t('country'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+      ),
+  );
+  $data['people']['type'] = array(
+      'title' => t('Type'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'sort' => array(
+          'handler' => 'views_handler_sort',
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_equality',
+      ),
+  );
+
+  return $data;
+}

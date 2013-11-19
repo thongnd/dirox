@@ -1,0 +1,195 @@
+<?php
+/**
+ * Implements hook_schema().
+ */
+function project_schema() {
+  $schema = array();
+
+  $schema['project'] = array(
+    'description' => 'The base table for Project.',
+    'fields' => array(
+      'pid' => array(
+        'description' => 'The primary identifier for the Project.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'name' => array(
+        'description' => 'Name of the project.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'code' => array(
+        'description' => 'Code of the project',
+        'type' => 'varchar',
+        'length' => 15,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'type_project' => array(
+        'description' => 'Type of the project',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'category' => array(
+        'description' => 'Category of the project',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'description' => array(
+        'description' => 'Description about the project',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'status_project' => array(
+        'description' => 'Status of the project',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'start_date' => array(
+        'description' => 'Start date of the project',
+        'type'        => 'int',
+        'length'      => 11,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'initial_mandays' => array(
+        'description' => 'Initial manday estimated',
+        'type' => 'float',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'current_mandays' => array(
+        'description' => 'Current mandays consumed',
+        'type' => 'float',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'initial_budget' => array(
+        'description' => 'Initial budget estimated',
+        'type' => 'float',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'current_budget' => array(
+        'description' => 'Current budget consumed',
+        'type' => 'float',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'initial_sold_amount' => array(
+        'description' => 'Initial sold amount for the project',
+        'type' => 'float',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'current_sold_amount' => array(
+        'description' => 'Current sold amount for the project',
+        'type' => 'float',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'account' => array(
+        'description' => 'Customer account',
+        'type' => 'int',
+        'length' => '10',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'supplier_pm' => array(
+        'description' => 'Supplier project manager',
+        'type' => 'int',
+        'length' => '10',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'client_pm' => array(
+        'description' => 'Client project manager',
+        'type' => 'int',
+        'length' => '10',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'account_payee' => array(
+        'description' => 'Account payee of the project',
+        'type' => 'int',
+        'length' => '10',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+
+      'type' => array(
+        'description' => 'The type (bundle) of this Project.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the Project was created.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'changed' => array(
+        'description' => 'The Unix timestamp when the Project was most recently saved.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'project_changed'        => array('changed'),
+      'project_created'        => array('created'),
+      'project_type'           => array(array('type', 4)),
+    ),
+    'primary key' => array('pid'),
+  );
+
+  $schema['project_type'] = array(
+    'description' => 'Stores information about all defined Project types.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique Project type ID.',
+      ),
+      'type' => array(
+        'description' => 'The machine-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'label' => array(
+        'description' => 'The human-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'description' => array(
+        'description' => 'A brief description of this type.',
+        'type' => 'text',
+        'not null' => TRUE,
+        'size' => 'medium',
+        'translatable' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'type' => array('type'),
+    ),
+  );
+
+  return $schema;
+}

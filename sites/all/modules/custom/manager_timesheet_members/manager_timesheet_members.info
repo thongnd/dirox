@@ -1,0 +1,10 @@
+name = Manager Timesheet Members
+description = Create manager timesheet members
+
+dependencies[] = entity
+dependencies[] = views
+
+files[] = manager_timesheet_members.controller.inc
+
+package = Dirox
+core = 7.x

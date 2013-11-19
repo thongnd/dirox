@@ -1,0 +1,10 @@
+name = Manager Timesheet
+description = Create manager timesheet 
+
+dependencies[] = entity
+dependencies[] = views
+
+files[] = manager_timesheet.controller.inc
+
+package = Dirox
+core = 7.x

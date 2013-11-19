@@ -1,0 +1,98 @@
+<?php
+/**
+ * Implements hook_schema().
+ */
+function manager_timesheet_schema() {
+  $schema = array();
+
+  $schema['manager_timesheet'] = array(
+    'description' => 'The base table for Manager Timesheet.',
+    'fields' => array(
+      'mtid' => array(
+        'description' => 'ID of the Manager Timesheet.',
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'week' => array(
+          'description' => 'Week of the timesheet',
+          'type' => 'int',
+          'not null' => TRUE,
+      ),
+      'billable_days' => array(
+          'description' => 'Billable days this weekly.',
+          'type' => 'float',
+      ),
+      'comment' => array(
+          'description' => 'Comment on the Manager Timesheet.',
+          'type' => 'text',
+      ),
+      'timesheet_status' => array(
+          'description' => 'Status of the timesheet.',
+          'type' => 'varchar',
+          'length' => 255,
+      ),
+      'type' => array(
+        'description' => 'The type (bundle) of this Manager Timesheet.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the Manager Timesheet was created.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'changed' => array(
+        'description' => 'The Unix timestamp when the Manager Timesheet was most recently saved.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'manager_timesheet_changed'        => array('changed'),
+      'manager_timesheet_created'        => array('created'),
+      'manager_timesheet_type'           => array(array('type', 4)),
+    ),
+    'primary key' => array('mtid'),
+  );
+
+  $schema['manager_timesheet_type'] = array(
+    'description' => 'Stores information about all defined Manager Timesheet types.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique Manager Timesheet type ID.',
+      ),
+      'type' => array(
+        'description' => 'The machine-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'label' => array(
+        'description' => 'The human-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'description' => array(
+        'description' => 'A brief description of this type.',
+        'type' => 'text',
+        'not null' => TRUE,
+        'size' => 'medium',
+        'translatable' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'type' => array('type'),
+    ),
+  );
+
+  return $schema;
+}

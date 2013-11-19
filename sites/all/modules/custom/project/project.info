@@ -1,0 +1,10 @@
+name = Project
+description = Create project  
+
+dependencies[] = entity
+dependencies[] = views
+
+files[] = project.controller.inc
+
+package = Dirox
+core = 7.x

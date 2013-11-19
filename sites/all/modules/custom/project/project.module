@@ -1,0 +1,371 @@
+<?php
+define('PROJECT_URI', 'project');
+define('PROJECT_URI_ARGUMENT_POSITION', 0);
+define('PROJECT_ADMIN_URI', 'admin/content/project');
+define('PROJECT_ADMIN_URI_ARGUMENT_POSITION', 2);
+define('PROJECT_TYPE_ADMIN_URI', 'admin/structure/project-types');
+define('PROJECT_TYPE_ADMIN_URI_ARGUMENT_POSITION', 2);
+
+module_load_include('inc', 'project', 'project.pages');
+
+/**
+ * Implements hook_entity_info().
+ */
+function project_entity_info() {
+  $return = array(
+    'project' => array(
+      'label' => t('Project'),
+      'entity class' => 'Project',
+      'controller class' => 'ProjectController',
+      'base table' => 'project',
+      'fieldable' => TRUE,
+      'entity keys' => array(
+        'id' => 'pid',
+        'bundle' => 'type',
+        'label' => 'title',
+        'language' => 'language',
+      ),
+      'bundle keys' => array(
+        'bundle' => 'type',
+      ),
+      'bundles' => array(),
+      'load hook' => 'project_load',
+      'view modes' => array(
+        'full' => array(
+          'label' => t('Default'),
+          'custom settings' => FALSE,
+        ),
+      ),
+      'label callback' => 'entity_class_label',
+      'uri callback' => 'entity_class_uri',
+      'module' => 'project',
+      'access callback' => 'project_access',
+    ),
+  );
+  $return['project_type'] = array(
+    'label' => t('Project Type'),
+    'entity class' => 'ProjectType',
+    'controller class' => 'ProjectTypeController',
+    'base table' => 'project_type',
+    'fieldable' => FALSE,
+    'bundle of' => 'project',
+    'exportable' => FALSE,
+    'entity keys' => array(
+      'id' => 'id',
+      'name' => 'type',
+      'label' => 'label',
+    ),
+    'module' => 'project',
+    // Enable the entity API's admin UI.
+    'admin ui' => array(
+      'path' => PROJECT_TYPE_ADMIN_URI,
+      'file' => 'project.type.inc',
+      'controller class' => 'ProjectTypeUIController',
+    ),
+    'access callback' => 'project_type_access',
+  );
+  return $return;
+}
+
+/**
+ * Implements hook_entity_info_alter().
+ */
+function project_entity_info_alter(&$entity_info) {
+  foreach (project_types() as $type => $info) {
+    $entity_info['project']['bundles'][$type] = array(
+      'label' => $info->label,
+      'admin' => array(
+        'path' => PROJECT_TYPE_ADMIN_URI . '/manage/%project_type',
+        'real path' => PROJECT_TYPE_ADMIN_URI . '/manage/' . $type,
+        'bundle argument' => PROJECT_TYPE_ADMIN_URI_ARGUMENT_POSITION + 2,
+      ),
+    );
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function project_menu() {
+  $items = array();
+
+  $items[PROJECT_TYPE_ADMIN_URI . '/%project_type/delete'] = array(
+    'title' => t('Delete Project Type'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('project_type_form_delete_confirm', PROJECT_TYPE_ADMIN_URI_ARGUMENT_POSITION + 2),
+    'access arguments' => array('administer project types'),
+    'weight' => 1,
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'project.type.inc',
+  );
+
+  $items[PROJECT_ADMIN_URI . '/add'] = array(
+    'title' => t('Add Project'),
+    'page callback' => 'project_admin_add_page',
+    'access arguments' => array('administer project entities'),
+    'type' => MENU_LOCAL_ACTION,
+    'tab_parent' => 'project',
+    'tab_root' => 'project',
+    'file' => 'project.admin.inc',
+  );
+
+  foreach (project_types() as $type => $info) {
+    $items[PROJECT_ADMIN_URI . '/add/' . $type] = array(
+      'title' => $info->label,
+      'page callback' => 'project_admin_add',
+      'page arguments' => array(PROJECT_ADMIN_URI_ARGUMENT_POSITION + 2),
+      'access callback' => 'entity_access',
+      'access arguments' => array('create', 'project', $type),
+      'file' => 'project.admin.inc',
+    );
+  }
+
+  $project_uri = PROJECT_URI . '/%project';
+  $project_uri_argument_position = PROJECT_URI_ARGUMENT_POSITION + 1;
+
+  $items[$project_uri] = array(
+    'title callback' => 'entity_label',
+    'title arguments' => array('project', $project_uri_argument_position),
+    'page callback' => 'project_view',
+    'page arguments' => array($project_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('view', 'project', $project_uri_argument_position),
+  );
+
+  $items[$project_uri . '/view'] = array(
+    'title' => t('View Project'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+
+  $items[$project_uri . '/delete'] = array(
+    'title' => t('Delete Project'),
+    'title callback' => 'project_label',
+    'title arguments' => array($project_uri_argument_position),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('project_admin_delete_form', $project_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('edit', 'project', $project_uri_argument_position),
+    'file' => 'project.admin.inc',
+  );
+
+  $items[$project_uri . '/edit'] = array(
+    'title' => t('Edit Project'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('project_admin_add_form', $project_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('edit', 'project', $project_uri_argument_position),
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+    'file' => 'project.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Access callback for Project.
+ */
+function project_access($op, $project, $account = NULL, $entity_type = NULL) {
+  global $user;
+  if (!isset($account)) {
+    $account = $user;
+  }
+  switch ($op) {
+  	case 'create':
+  	  return user_access('administer project entities', $account)
+  	  || user_access('create project entities', $account);
+  	case 'view':
+  	  return user_access('administer project entities', $account)
+  	  || user_access('view project entities', $account);
+  	case 'edit':
+  	  return user_access('administer project entities')
+  	  || user_access('edit any project entities')
+  	  || (user_access('edit own project entities') && ($task->uid == $account->uid));
+  }
+}
+
+/**
+ * Access callback for Project Type.
+ */
+function project_type_access($op, $entity = NULL) {
+  return user_access('administer project types');
+}
+
+/**
+ * Implements hook_permission().
+ */
+function project_permission() {
+  $permissions = array(
+    'administer project types' => array(
+      'title' => t('Administer Project types'),
+      'description' => t('Allows users to configure Project types and their fields.'),
+      'restrict access' => TRUE,
+    ),
+    'create project entities' => array(
+      'title' => t('Create Project'),
+      'description' => t('Allows users to create Project.'),
+      'restrict access' => TRUE,
+    ),
+    'view project entities' => array(
+      'title' => t('View Project'),
+      'description' => t('Allows users to view Project.'),
+      'restrict access' => TRUE,
+    ),
+    'edit any project entities' => array(
+      'title' => t('Edit any Project'),
+      'description' => t('Allows users to edit any Project.'),
+      'restrict access' => TRUE,
+    ),
+    'edit own project entities' => array(
+      'title' => t('Edit own Project'),
+      'description' => t('Allows users to edit own Project.'),
+      'restrict access' => TRUE,
+    ),
+  );
+  return $permissions;
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function project_views_api() {
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'project'),
+  );
+}
+
+function project_get_id_people_firstname($people_id){
+  return db_select('people', 'p')
+  ->fields('p', array('first_name'))
+  ->condition('p.pid', $people_id, '=')
+  ->execute()
+  ->fetchField();
+}
+function project_get_id_people_lastname($people_id){
+  return db_select('people', 'p')
+  ->fields('p', array('last_name'))
+  ->condition('p.pid', $people_id, '=')
+  ->execute()
+  ->fetchField();
+}
+
+function project_get_id_account($uid){
+  return db_select('users', 'u')
+  ->fields('u', array('name'))
+  ->condition('u.uid', $uid, '=')
+  ->execute()
+  ->fetchField();
+}
+
+function project_views_post_execute(&$view) {
+  if($view->name == 'project'){
+    foreach ($view->result as $key => $result) {
+      if ($view->result[$key]->project_status_project == 1){
+        $view->result[$key]->project_status_project = 'Started';
+      }
+      elseif ($view->result[$key]->project_status_project == 2){
+        $view->result[$key]->project_status_project = 'Closed';
+      }
+
+      if ($view->result[$key]->project_type_project == 1){
+        $view->result[$key]->project_type_project = 'Fixed Price';
+      }
+      elseif ($view->result[$key]->project_type_project == 2){
+        $view->result[$key]->project_type_project = 'Time and material';
+      }
+
+      if ($view->result[$key]->project_category == 1){
+        $view->result[$key]->project_category = 'Production';
+      }
+      elseif ($view->result[$key]->project_category == 2){
+        $view->result[$key]->project_category = 'Sharpen the saw';
+      }
+      elseif ($view->result[$key]->project_category == 3){
+        $view->result[$key]->project_category = 'Research and development';
+      }
+      elseif ($view->result[$key]->project_category == 4){
+        $view->result[$key]->project_category = 'Leave of Absence';
+      }
+      elseif ($view->result[$key]->project_category == 5){
+        $view->result[$key]->project_category = 'Another Project';
+      }
+
+      if ($view->result[$key]->project_account_payee > 0){
+        $view->result[$key]->project_account_payee = project_get_id_people_firstname($view->result[$key]->project_account_payee).' '.project_get_id_people_lastname($view->result[$key]->project_account_payee);
+      }
+      else {
+        $view->result[$key]->project_account_payee = '';
+      }
+
+      if ($view->result[$key]->project_client_pm > 0){
+        $view->result[$key]->project_client_pm = project_get_id_people_firstname($view->result[$key]->project_client_pm).' '.project_get_id_people_lastname($view->result[$key]->project_client_pm);
+      }
+      else {
+        $view->result[$key]->project_client_pm = '';
+      }
+
+      if ($view->result[$key]->project_supplier_pm > 0){
+        $view->result[$key]->project_supplier_pm = project_get_id_people_firstname($view->result[$key]->project_supplier_pm).' '.project_get_id_people_lastname($view->result[$key]->project_supplier_pm);
+      }
+      else {
+        $view->result[$key]->project_supplier_pm = '';
+      }
+
+      if ($view->result[$key]->project_account > 0){
+        $view->result[$key]->project_account = project_get_id_account($view->result[$key]->project_account);
+      }
+      else {
+        $view->result[$key]->project_account = '';
+      }
+
+    }
+  }
+}
+function project_views_data_alter(&$data) {
+  $data['project']['account_payee'] = array(
+      'title' => t('account_payee'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+          'label' => t('account_payee'),
+      ),
+  );
+  $data['project']['client_pm'] = array(
+      'title' => t('client_pm'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+          'label' => t('client_pm'),
+      ),
+  );
+  $data['project']['supplier_pm'] = array(
+      'title' => t('supplier_pm'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+          'label' => t('supplier_pm'),
+      ),
+  );
+  $data['project']['account'] = array(
+      'title' => t('account'),
+      'field' => array(
+          'handler' => 'views_handler_field',
+          'click sortable' => TRUE,
+      ),
+      'filter' => array(
+          'handler' => 'views_handler_filter_string',
+          'label' => t('account'),
+      ),
+  );
+}

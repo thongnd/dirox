@@ -1,0 +1,237 @@
+<?php
+define('MANAGER_TIMESHEET_MEMBERS_URI', 'manager-timesheet-members');
+define('MANAGER_TIMESHEET_MEMBERS_URI_ARGUMENT_POSITION', 0);
+define('MANAGER_TIMESHEET_MEMBERS_ADMIN_URI', 'admin/content/manager-timesheet-members');
+define('MANAGER_TIMESHEET_MEMBERS_ADMIN_URI_ARGUMENT_POSITION', 2);
+define('MANAGER_TIMESHEET_MEMBERS_TYPE_ADMIN_URI', 'admin/structure/manager-timesheet-members-types');
+define('MANAGER_TIMESHEET_MEMBERS_TYPE_ADMIN_URI_ARGUMENT_POSITION', 2);
+
+module_load_include('inc', 'manager_timesheet_members', 'manager_timesheet_members.pages');
+
+/**
+ * Implements hook_entity_info().
+ */
+function manager_timesheet_members_entity_info() {
+  $return = array(
+    'manager_timesheet_members' => array(
+      'label' => t('Manager Timesheet Members'),
+      'entity class' => 'ManagerTimesheetMembers',
+      'controller class' => 'ManagerTimesheetMembersController',
+      'base table' => 'manager_timesheet_members',
+      'fieldable' => TRUE,
+      'entity keys' => array(
+        'id' => 'mtmid',
+        'bundle' => 'type',
+        'label' => 'title',
+        'language' => 'language',
+      ),
+      'bundle keys' => array(
+        'bundle' => 'type',
+      ),
+      'bundles' => array(),
+      'load hook' => 'manager_timesheet_members_load',
+      'view modes' => array(
+        'full' => array(
+          'label' => t('Default'),
+          'custom settings' => FALSE,
+        ),
+      ),
+      'label callback' => 'entity_class_label',
+      'uri callback' => 'entity_class_uri',
+      'module' => 'manager_timesheet_members',
+      'access callback' => 'manager_timesheet_members_access',
+    ),
+  );
+  $return['manager_timesheet_members_type'] = array(
+    'label' => t('Manager Timesheet Members Type'),
+    'entity class' => 'ManagerTimesheetMembersType',
+    'controller class' => 'ManagerTimesheetMembersTypeController',
+    'base table' => 'manager_timesheet_members_type',
+    'fieldable' => FALSE,
+    'bundle of' => 'manager_timesheet_members',
+    'exportable' => FALSE,
+    'entity keys' => array(
+      'id' => 'id',
+      'name' => 'type',
+      'label' => 'label',
+    ),
+    'module' => 'manager_timesheet_members',
+    // Enable the entity API's admin UI.
+    'admin ui' => array(
+      'path' => MANAGER_TIMESHEET_MEMBERS_TYPE_ADMIN_URI,
+      'file' => 'manager_timesheet_members.type.inc',
+      'controller class' => 'ManagerTimesheetMembersTypeUIController',
+    ),
+    'access callback' => 'manager_timesheet_members_type_access',
+  );
+  return $return;
+}
+
+/**
+ * Implements hook_entity_info_alter().
+ */
+function manager_timesheet_members_entity_info_alter(&$entity_info) {
+  foreach (manager_timesheet_members_types() as $type => $info) {
+    $entity_info['manager_timesheet_members']['bundles'][$type] = array(
+      'label' => $info->label,
+      'admin' => array(
+        'path' => MANAGER_TIMESHEET_MEMBERS_TYPE_ADMIN_URI . '/manage/%manager_timesheet_members_type',
+        'real path' => MANAGER_TIMESHEET_MEMBERS_TYPE_ADMIN_URI . '/manage/' . $type,
+        'bundle argument' => MANAGER_TIMESHEET_MEMBERS_TYPE_ADMIN_URI_ARGUMENT_POSITION + 2,
+      ),
+    );
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function manager_timesheet_members_menu() {
+  $items = array();
+
+  $items[MANAGER_TIMESHEET_MEMBERS_TYPE_ADMIN_URI . '/%manager_timesheet_members_type/delete'] = array(
+    'title' => t('Delete Manager Timesheet Members Type'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('manager_timesheet_members_type_form_delete_confirm', MANAGER_TIMESHEET_MEMBERS_TYPE_ADMIN_URI_ARGUMENT_POSITION + 2),
+    'access arguments' => array('administer manager_timesheet_members types'),
+    'weight' => 1,
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'manager_timesheet_members.type.inc',
+  );
+
+  $items[MANAGER_TIMESHEET_MEMBERS_ADMIN_URI . '/add'] = array(
+    'title' => t('Add Manager Timesheet Members'),
+    'page callback' => 'manager_timesheet_members_admin_add_page',
+    'access arguments' => array('administer manager_timesheet_members entities'),
+    'type' => MENU_LOCAL_ACTION,
+    'tab_parent' => 'manager_timesheet_members',
+    'tab_root' => 'manager_timesheet_members',
+    'file' => 'manager_timesheet_members.admin.inc',
+  );
+
+  foreach (manager_timesheet_members_types() as $type => $info) {
+    $items[MANAGER_TIMESHEET_MEMBERS_ADMIN_URI . '/add/' . $type] = array(
+      'title' => $info->label,
+      'page callback' => 'manager_timesheet_members_admin_add',
+      'page arguments' => array(MANAGER_TIMESHEET_MEMBERS_ADMIN_URI_ARGUMENT_POSITION + 2),
+      'access callback' => 'entity_access',
+      'access arguments' => array('create', 'manager_timesheet_members', $type),
+      'file' => 'manager_timesheet_members.admin.inc',
+    );
+  }
+
+  $manager_timesheet_members_uri = MANAGER_TIMESHEET_MEMBERS_URI . '/%manager_timesheet_members';
+  $manager_timesheet_members_uri_argument_position = MANAGER_TIMESHEET_MEMBERS_URI_ARGUMENT_POSITION + 1;
+
+  $items[$manager_timesheet_members_uri] = array(
+    'title callback' => 'entity_label',
+    'title arguments' => array('manager_timesheet_members', $manager_timesheet_members_uri_argument_position),
+    'page callback' => 'manager_timesheet_members_view',
+    'page arguments' => array($manager_timesheet_members_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('view', 'manager_timesheet_members', $manager_timesheet_members_uri_argument_position),
+  );
+
+  $items[$manager_timesheet_members_uri . '/view'] = array(
+    'title' => t('View Manager Timesheet Members'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+
+  $items[$manager_timesheet_members_uri . '/delete'] = array(
+    'title' => t('Delete Manager Timesheet Members'),
+    'title callback' => 'manager_timesheet_members_label',
+    'title arguments' => array($manager_timesheet_members_uri_argument_position),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('manager_timesheet_members_admin_delete_form', $manager_timesheet_members_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('edit', 'manager_timesheet_members', $manager_timesheet_members_uri_argument_position),
+    'file' => 'manager_timesheet_members.admin.inc',
+  );
+
+  $items[$manager_timesheet_members_uri . '/edit'] = array(
+    'title' => t('Edit Manager Timesheet Members'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('manager_timesheet_members_admin_add_form', $manager_timesheet_members_uri_argument_position),
+    'access callback' => 'entity_access',
+    'access arguments' => array('edit', 'manager_timesheet_members', $manager_timesheet_members_uri_argument_position),
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+    'file' => 'manager_timesheet_members.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Access callback for Manager Timesheet Members.
+ */
+function manager_timesheet_members_access($op, $manager_timesheet_members, $account = NULL, $entity_type = NULL) {
+  global $user;
+  if (!isset($account)) {
+    $account = $user;
+  }
+  switch ($op) {
+  	case 'create':
+  	  return user_access('administer manager_timesheet_members entities', $account)
+  	  || user_access('create manager_timesheet_members entities', $account);
+  	case 'view':
+  	  return user_access('administer manager_timesheet_members entities', $account)
+  	  || user_access('view manager_timesheet_members entities', $account);
+  	case 'edit':
+  	  return user_access('administer manager_timesheet_members entities')
+  	  || user_access('edit any manager_timesheet_members entities')
+  	  || (user_access('edit own manager_timesheet_members entities') && ($task->uid == $account->uid));
+  }
+}
+
+/**
+ * Access callback for Manager Timesheet Members Type.
+ */
+function manager_timesheet_members_type_access($op, $entity = NULL) {
+  return user_access('administer manager_timesheet_members types');
+}
+
+/**
+ * Implements hook_permission().
+ */
+function manager_timesheet_members_permission() {
+  $permissions = array(
+    'administer manager_timesheet_members types' => array(
+      'title' => t('Administer Manager Timesheet Members types'),
+      'description' => t('Allows users to configure Manager Timesheet Members types and their fields.'),
+      'restrict access' => TRUE,
+    ),
+    'create manager_timesheet_members entities' => array(
+      'title' => t('Create Manager Timesheet Members'),
+      'description' => t('Allows users to create Manager Timesheet Members.'),
+      'restrict access' => TRUE,
+    ),
+    'view manager_timesheet_members entities' => array(
+      'title' => t('View Manager Timesheet Members'),
+      'description' => t('Allows users to view Manager Timesheet Members.'),
+      'restrict access' => TRUE,
+    ),
+    'edit any manager_timesheet_members entities' => array(
+      'title' => t('Edit any Manager Timesheet Members'),
+      'description' => t('Allows users to edit any Manager Timesheet Members.'),
+      'restrict access' => TRUE,
+    ),
+    'edit own manager_timesheet_members entities' => array(
+      'title' => t('Edit own Manager Timesheet Members'),
+      'description' => t('Allows users to edit own Manager Timesheet Members.'),
+      'restrict access' => TRUE,
+    ),
+  );
+  return $permissions;
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function manager_timesheet_members_views_api() {
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'manager_timesheet_members'),
+  );
+}

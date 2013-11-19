@@ -1,0 +1,109 @@
+<?php
+/**
+ * Implements hook_schema().
+ */
+function week_schema() {
+  $schema = array();
+
+  $schema['week'] = array(
+    'description' => 'The base table for Week.',
+    'fields' => array(
+      'wid' => array(
+        'description' => 'The primary identifier for the Week.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'year' => array(
+        'description' => 'Year of the week.',
+        'type' => 'int',
+        'length' => 4,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'week_number' => array(
+        'description' => 'Number of the week in the year.',
+        'type' => 'int',
+        'length' => 3,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'week_working_days' => array(
+        'description' => 'Number of working days during the week.',
+        'type' => 'int',
+        'length' => 1,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'week_first_day' => array(
+        'description' => 'First day date of the week.',
+        'type'        => 'int',
+        'length'      => 11,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'type' => array(
+        'description' => 'The type (bundle) of this Week.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the Week was created.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'changed' => array(
+        'description' => 'The Unix timestamp when the Week was most recently saved.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'week_changed'        => array('changed'),
+      'week_created'        => array('created'),
+      'week_type'           => array(array('type', 4)),
+    ),
+    'primary key' => array('wid'),
+  );
+
+  $schema['week_type'] = array(
+    'description' => 'Stores information about all defined Week types.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique Week type ID.',
+      ),
+      'type' => array(
+        'description' => 'The machine-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'label' => array(
+        'description' => 'The human-readable name of this type.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'description' => array(
+        'description' => 'A brief description of this type.',
+        'type' => 'text',
+        'not null' => TRUE,
+        'size' => 'medium',
+        'translatable' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'type' => array('type'),
+    ),
+  );
+
+  return $schema;
+}
